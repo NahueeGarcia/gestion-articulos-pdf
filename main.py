@@ -18,104 +18,95 @@ def crear_pdf_articulo(nombre_archivo, datos_por_articulo, carpeta_destino="pdfs
     c = canvas.Canvas(ruta_completa, pagesize=letter)
     width, height = letter
     
-    # Configurar posiciones iniciales
+    # Configuración inicial
     y_position = height - 50
-    line_height = 20
+    row_height = 15  # mismo que pasillo
+    font_header = 9
+    font_data = 8
+
+    # Columnas (idénticas a pasillo)
+    col_localizador = 50
+    col_articulo = 120
+    col_descripcion = 190
+    col_en_mano = 390
+    col_lpn = 460
+    columns = [col_localizador, col_articulo, col_descripcion, col_en_mano, col_lpn]
     
-    # Título principal
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y_position, f"REPORTE DE ARTÍCULO: {nombre_archivo}")
-    y_position -= 30
-    
-    # Fecha y hora de generación
-    c.setFont("Helvetica", 10)
-    fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
-    c.drawString(50, y_position, f"Generado el: {fecha_actual}")
-    y_position -= 40
-    
-    # Verificar si hay datos
+    headers = ["Localizador", "Artículo", "Descripción", "En Mano", "LPN"]
+
     if not datos_por_articulo:
-        c.setFont("Helvetica", 12)
+        c.setFont("Helvetica", font_data)
         c.drawString(50, y_position, "No se encontraron datos para este artículo.")
-    else:
-        # Información del artículo (tomar datos del primer resultado)
-        primer_resultado = datos_por_articulo[0]
-        articulo_codigo = primer_resultado[0]
-        descripcion = primer_resultado[1]
-        
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(50, y_position, f"Artículo: {articulo_codigo}")
-        y_position -= line_height
-        
-        c.setFont("Helvetica", 12)
-        c.drawString(50, y_position, f"Descripción: {descripcion}")
-        y_position -= 30
-        
-        # Encabezados de la tabla
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(50, y_position, "UBICACIONES Y STOCK:")
-        y_position -= 25
-        
-        # Headers de la tabla
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(50, y_position, "Localizador")
-        c.drawString(200, y_position, "En Mano")
-        c.drawString(300, y_position, "LPN")
-        y_position -= 5
-        
-        # Línea separadora
-        c.line(50, y_position, 550, y_position)
-        y_position -= 15
-        
-        # Datos de cada ubicación
-        c.setFont("Helvetica", 10)
-        total_stock = 0
-        
-        for i, (art, desc, en_mano, localizador, lpn) in enumerate(datos_por_articulo):
-            # Verificar si necesitamos una nueva página
-            if y_position < 100:
-                c.showPage()
-                y_position = height - 50
-                c.setFont("Helvetica", 10)
-            
-            # Convertir en_mano a número para sumar
-            try:
-                stock_numerico = float(en_mano) if en_mano != '' else 0
-                total_stock += stock_numerico
-                stock_texto = str(en_mano) if en_mano != '' else '0'
-            except (ValueError, TypeError):
-                stock_texto = str(en_mano)
+        c.save()
+        return ruta_completa
 
-            # Manejar el LPN (evitar mostrar nan)
-            if pd.isna(lpn) or str(lpn).lower() == 'nan':
-                lpn_texto = "-"
+    # Función para dibujar headers
+    def dibujar_headers(y_pos):
+        c.setFont("Helvetica-Bold", font_header)
+        for i, (header, col_x) in enumerate(zip(headers, columns)):
+            c.setFillColorRGB(0.9, 0.9, 0.9)
+            if i == 0:
+                c.rect(col_x, y_pos - row_height + 5, columns[1] - col_x, row_height, fill=1, stroke=1)
+            elif i == len(headers) - 1:
+                c.rect(col_x, y_pos - row_height + 5, width - 50 - col_x, row_height, fill=1, stroke=1)
             else:
-                lpn_texto = str(lpn)
-            
-            # Escribir los datos
-            c.drawString(50, y_position, str(localizador))
-            c.drawString(200, y_position, stock_texto)
-            c.drawString(300, y_position, lpn_texto)
+                c.rect(col_x, y_pos - row_height + 5, columns[i+1] - col_x, row_height, fill=1, stroke=1)
+            c.setFillColorRGB(0, 0, 0)
+            c.drawString(col_x + 2, y_pos - 8, header)  # alineado igual que pasillo
 
-            y_position -= line_height
+    # Dibujar headers iniciales
+    dibujar_headers(y_position)
+    y_position -= row_height
+
+    # Filas
+    c.setFont("Helvetica", font_data)
+    for i, (articulo, descripcion, en_mano, localizador, lpn) in enumerate(datos_por_articulo):
+        if y_position < 60:  # salto de página
+            c.showPage()
+            y_position = height - 50
+            dibujar_headers(y_position)
+            y_position -= row_height
+            c.setFont("Helvetica", font_data)
+
+        # Fondo alternado
+        c.setFillColorRGB(0.98, 0.98, 0.98) if i % 2 == 0 else c.setFillColorRGB(1, 1, 1)
+        for j, col_x in enumerate(columns):
+            if j == 0:
+                c.rect(col_x, y_position - row_height + 5, columns[1] - col_x, row_height, fill=1, stroke=1)
+            elif j == len(columns) - 1:
+                c.rect(col_x, y_position - row_height + 5, width - 50 - col_x, row_height, fill=1, stroke=1)
+            else:
+                c.rect(col_x, y_position - row_height + 5, columns[j+1] - col_x, row_height, fill=1, stroke=1)
+
+        c.setFillColorRGB(0, 0, 0)
+
+        # Stock
+        try:
+            stock_texto = str(en_mano) if en_mano != '' else '0'
+        except (ValueError, TypeError):
+            stock_texto = '0'
         
-        # Línea separadora antes del total
-        y_position -= 10
-        c.line(50, y_position, 550, y_position)
-        y_position -= 20
+        # LPN
+        if pd.isna(lpn) or str(lpn).lower() == 'nan':
+            lpn_texto = "-"
+        else:
+            lpn_texto = str(lpn)
         
-        # Total de stock
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(50, y_position, f"TOTAL EN STOCK: {total_stock}")
-        y_position -= 20
-        
-        # Resumen
-        c.setFont("Helvetica", 10)
-        c.drawString(50, y_position, f"Total de ubicaciones encontradas: {len(datos_por_articulo)}")
-    
-    # Guardar el PDF
+        # Descripción más corta para encajar
+        desc_truncada = str(descripcion)[:35] + "..." if len(str(descripcion)) > 35 else str(descripcion)
+
+        # Escribir datos (mismo offset que pasillo → -8)
+        c.drawString(col_localizador + 2, y_position - 8, str(localizador))
+        c.drawString(col_articulo + 2, y_position - 8, str(articulo))
+        c.drawString(col_descripcion + 2, y_position - 8, desc_truncada)
+        c.drawString(col_en_mano + 2, y_position - 8, stock_texto)
+        c.drawString(col_lpn + 2, y_position - 8, lpn_texto)
+
+        y_position -= row_height
+
     c.save()
     return ruta_completa
+
 
 def mostrar_mensaje_exito(mensaje, label_mensaje):
     label_mensaje.configure(text=mensaje, font=('Arial', 10, 'bold'))
@@ -177,158 +168,93 @@ def obtener_datos_por_articulo(articulo, archivo_excel):
         return []
 
 def crear_pdf_pasillo(pasillo, datos_por_pasillo, carpeta_destino="pdfs"):
-    """Crea un PDF con los datos del pasillo encontrados en el Excel"""
-    # Crear la carpeta si no existe
+    
     if not os.path.exists(carpeta_destino):
         os.makedirs(carpeta_destino)
     
-    nombre_archivo = f"pasillo{pasillo}"
-    # Ruta completa del archivo
-    ruta_completa = os.path.join(carpeta_destino, f"{nombre_archivo}.pdf")
-    
-    # Crear el PDF
+    ruta_completa = os.path.join(carpeta_destino, f"pasillo{pasillo}.pdf")
     c = canvas.Canvas(ruta_completa, pagesize=letter)
     width, height = letter
     
-    # Configurar posiciones iniciales
+    # Configuración inicial
     y_position = height - 50
-    line_height = 18
-    
-    # Título principal
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y_position, f"REPORTE DE PASILLO: {pasillo}")
-    y_position -= 30
-    
-    # Fecha y hora de generación
-    c.setFont("Helvetica", 10)
-    fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
-    c.drawString(50, y_position, f"Generado el: {fecha_actual}")
-    y_position -= 40
-    
-    # Verificar si hay datos
+    row_height = 15  # compacto pero legible
+    font_header = 9
+    font_data = 8
+
     if not datos_por_pasillo:
-        c.setFont("Helvetica", 12)
-        c.drawString(50, y_position, "No se encontraron datos para este pasillo.")
-    else:
-        # Información del pasillo
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(50, y_position, f"Pasillo: P{int(pasillo):02d}")
-        y_position -= 25
-        
-        c.setFont("Helvetica", 11)
-        c.drawString(50, y_position, "Artículos ordenados por altura y posición")
-        y_position -= 35
-        
-        # Encabezados de la tabla
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(50, y_position, "Localizador")
-        c.drawString(150, y_position, "Artículo")
-        c.drawString(230, y_position, "Descripción")
-        c.drawString(380, y_position, "En Mano")
-        c.drawString(450, y_position, "LPN")
-        y_position -= 5
-        
-        # Línea separadora
-        c.line(50, y_position, 500, y_position)
-        y_position -= 15
-        
-        # Datos de cada ubicación
-        c.setFont("Helvetica", 9)
-        total_articulos = 0
-        altura_actual = None
-        
-        for i, (localizador, articulo, desc, en_mano, lpn) in enumerate(datos_por_pasillo):
-            # Verificar si necesitamos una nueva página
-            if y_position < 80:
-                c.showPage()
-                y_position = height - 50
-                # Repetir encabezados en nueva página
-                c.setFont("Helvetica-Bold", 14)
-                c.drawString(50, y_position, f"Pasillo: P{int(pasillo):02d} (continuación)")
-                y_position -= 30
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(50, y_position, "Localizador")
-                c.drawString(150, y_position, "Artículo")
-                c.drawString(230, y_position, "Descripción")
-                c.drawString(380, y_position, "En Mano")
-                c.drawString(450, y_position, "LPN")
-                y_position -= 5
-                c.line(50, y_position, 500, y_position)
-                y_position -= 15
-                c.setFont("Helvetica", 9)
-            
-            # Extraer altura del localizador para agrupar visualmente
-            try:
-                partes = localizador.split('.')
-                altura = int(partes[2]) if len(partes) >= 3 else 0
-                
-                # Si cambió la altura, agregar separador visual
-                if altura_actual is not None and altura != altura_actual:
-                    y_position -= 5
-                    c.setFont("Helvetica", 8)
-                    c.setFillColorRGB(0.7, 0.7, 0.7)
-                    c.drawString(50, y_position, f"--- Altura {altura} ---")
-                    c.setFillColorRGB(0, 0, 0)  # Volver a negro
-                    y_position -= 10
-                    c.setFont("Helvetica", 9)
-                elif altura_actual is None:
-                    # Primera altura
-                    c.setFont("Helvetica", 8)
-                    c.setFillColorRGB(0.7, 0.7, 0.7)
-                    c.drawString(50, y_position, f"--- Altura {altura} ---")
-                    c.setFillColorRGB(0, 0, 0)
-                    y_position -= 10
-                    c.setFont("Helvetica", 9)
-                
-                altura_actual = altura
-            except (ValueError, IndexError):
-                pass
-            
-            # Manejar stock
-            try:
-                stock_texto = str(en_mano) if en_mano != '' and not pd.isna(en_mano) else '0'
-            except:
-                stock_texto = '0'
-            
-            # Manejar el LPN (evitar mostrar nan)
-            if pd.isna(lpn) or str(lpn).lower() == 'nan':
-                lpn_texto = "-"
-            else:
-                lpn_texto = str(lpn)
-            
-            # Manejar artículo (convertir float a string limpio si es necesario)
-            if pd.isna(articulo):
-                articulo_texto = ""
-            else:
-                articulo_str = str(articulo)
-                # Limpiar .0 del final si es un float
-                articulo_texto = articulo_str.replace('.0', '') if articulo_str.endswith('.0') else articulo_str
-            
-            # Truncar textos largos para que entren
-            desc_truncada = str(desc)[:18] + "..." if len(str(desc)) > 18 else str(desc)
-            
-            # Escribir los datos
-            c.drawString(50, y_position, str(localizador))
-            c.drawString(150, y_position, articulo_texto)
-            c.drawString(230, y_position, desc_truncada)
-            c.drawString(380, y_position, stock_texto)
-            c.drawString(450, y_position, lpn_texto)
-            y_position -= line_height
-            
-            total_articulos += 1
-        
-        # Línea separadora antes del total
-        y_position -= 10
-        c.line(50, y_position, 500, y_position)
-        y_position -= 20
-        
-        # Resumen
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(50, y_position, f"TOTAL DE ARTÍCULOS EN EL PASILLO: {total_articulos}")
+        c.setFont("Helvetica", font_data)
+        c.drawString(50, y_position, f"No se encontraron datos para el pasillo {pasillo}.")
+        c.save()
+        return ruta_completa
     
-    # Guardar el PDF
+    # Columnas
+    col_localizador = 50
+    col_articulo = 120
+    col_descripcion = 190
+    col_en_mano = 390
+    col_lpn = 460
+    columns = [col_localizador, col_articulo, col_descripcion, col_en_mano, col_lpn]
+    
+    headers = ["Localizador", "Artículo", "Descripción", "En Mano", "LPN"]
+    
+    def dibujar_headers(y_pos):
+        c.setFont("Helvetica-Bold", font_header)
+        for i, (header, col_x) in enumerate(zip(headers, columns)):
+            c.setFillColorRGB(0.9, 0.9, 0.9)
+            if i == 0:
+                c.rect(col_x, y_pos - row_height + 5, columns[1] - col_x, row_height, fill=1, stroke=1)
+            elif i == len(headers) - 1:
+                c.rect(col_x, y_pos - row_height + 5, width - 50 - col_x, row_height, fill=1, stroke=1)
+            else:
+                c.rect(col_x, y_pos - row_height + 5, columns[i+1] - col_x, row_height, fill=1, stroke=1)
+            c.setFillColorRGB(0, 0, 0)
+            # 🔹 Subido un poco para que no quede pisado
+            c.drawString(col_x + 2, y_pos - 8, header)
+    
+    # Dibujar encabezados iniciales
+    dibujar_headers(y_position)
+    y_position -= row_height
+    
+    # Filas
+    c.setFont("Helvetica", font_data)
+    for i, (localizador, articulo, desc, en_mano, lpn) in enumerate(datos_por_pasillo):
+        if y_position < 60:  # salto de página
+            c.showPage()
+            y_position = height - 50
+            dibujar_headers(y_position)
+            y_position -= row_height
+            c.setFont("Helvetica", font_data)
+        
+        # Fondo alternado
+        c.setFillColorRGB(0.98, 0.98, 0.98) if i % 2 == 0 else c.setFillColorRGB(1, 1, 1)
+        for j, col_x in enumerate(columns):
+            if j == 0:
+                c.rect(col_x, y_position - row_height + 5, columns[1] - col_x, row_height, fill=1, stroke=1)
+            elif j == len(columns) - 1:
+                c.rect(col_x, y_position - row_height + 5, width - 50 - col_x, row_height, fill=1, stroke=1)
+            else:
+                c.rect(col_x, y_position - row_height + 5, columns[j+1] - col_x, row_height, fill=1, stroke=1)
+        
+        # Texto procesado
+        articulo_texto = "" if pd.isna(articulo) else str(articulo).replace('.0', '') if str(articulo).endswith('.0') else str(articulo)
+        stock_texto = "0" if pd.isna(en_mano) or en_mano == '' else str(en_mano)
+        lpn_texto = "-" if pd.isna(lpn) or str(lpn).lower() == 'nan' else str(lpn)
+        desc_truncada = str(desc)[:35] + "..." if len(str(desc)) > 35 else str(desc)
+        
+        c.setFillColorRGB(0, 0, 0)
+        # 🔹 Subido un poco (antes -10, ahora -8)
+        c.drawString(col_localizador + 2, y_position - 8, str(localizador))
+        c.drawString(col_articulo + 2, y_position - 8, articulo_texto)
+        c.drawString(col_descripcion + 2, y_position - 8, desc_truncada)
+        c.drawString(col_en_mano + 2, y_position - 8, stock_texto)
+        c.drawString(col_lpn + 2, y_position - 8, lpn_texto)
+        
+        y_position -= row_height
+    
     c.save()
     return ruta_completa
+
 
 def obtener_datos_por_pasillo(pasillo, archivo_excel):
     resultados = []
