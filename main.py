@@ -114,6 +114,13 @@ def mostrar_mensaje_exito(mensaje, label_mensaje):
     # Limpiar después de 3 segundos
     label_mensaje.after(3000, lambda: label_mensaje.configure(text="", font=('Arial', 10)))
 
+def mostrar_mensaje_descripcion(descripcion, label_mensaje):
+    label_mensaje.configure(text=descripcion, font=('Arial', 10, 'bold'))
+    label_mensaje.pack(pady=10)  # usar pack en vez de grid/place
+
+    # limpiar después de 30 segundos
+    label_mensaje.after(30000, lambda: label_mensaje.configure(text="", font=('Arial', 10)))
+
 def obtener_datos_por_articulo(articulo, archivo_excel):
     resultados = []
     
@@ -333,6 +340,49 @@ def obtener_datos_por_pasillo(pasillo, archivo_excel):
     except Exception as e:
         print(f"Error al procesar el archivo: {str(e)}")
         return []
+    
+def obtener_descripcion(articulo, archivo_excel):
+    try:
+        # Si es un StringVar de tkinter, extraer el valor
+        if hasattr(archivo_excel, 'get'):
+            ruta_archivo = archivo_excel.get()
+        else:
+            ruta_archivo = archivo_excel
+
+        # Verificar que la ruta no esté vacía
+        if not ruta_archivo:
+            print("Error: No se ha seleccionado ningún archivo")
+            return ""
+
+        # Leer todas las hojas del Excel
+        todas_las_hojas = pd.read_excel(ruta_archivo, sheet_name=None)
+
+        # Convertir a string el artículo que buscamos
+        articulo_str = str(articulo)
+
+        # Buscar en cada hoja
+        for nombre_hoja, df in todas_las_hojas.items():
+            if 'Artículo' in df.columns and 'Desc Artículo' in df.columns:
+                # Convertir la columna Artículo a string
+                df['Artículo'] = df['Artículo'].astype(str)
+                df['Artículo'] = df['Artículo'].str.replace(r'\.0$', '', regex=True)
+
+                # Filtrar coincidencias
+                coincidencias = df[df['Artículo'] == articulo_str]
+
+                if not coincidencias.empty:
+                    # Devolver la primera descripción encontrada
+                    return str(coincidencias.iloc[0]['Desc Artículo'])
+
+        # Si no se encontró nada
+        return ""
+
+    except FileNotFoundError:
+        print(f"Error: No se pudo encontrar el archivo {ruta_archivo}")
+        return ""
+    except Exception as e:
+        print(f"Error al procesar el archivo: {str(e)}")
+        return ""
 
 def buscar_por_articulo(entry_articulo, archivo_excel, label_mensaje):
     """Crea PDF para artículo específico"""
@@ -350,6 +400,20 @@ def buscar_por_articulo(entry_articulo, archivo_excel, label_mensaje):
         mostrar_mensaje_exito(mensaje, label_mensaje)
     except Exception as e:
         messagebox.showerror("Error", f"Error al crear el PDF: {str(e)}")
+
+def buscar_descripcion_articulo(entry_articulo, archivo_excel, label_mensaje):
+    """Crea PDF para artículo específico"""
+    articulo = entry_articulo.get().strip()
+    
+    if not articulo:
+        messagebox.showwarning("Advertencia", "Por favor ingresa el nombre del artículo")
+        return
+    
+    try:
+        descripcion = obtener_descripcion(articulo, archivo_excel)
+        mostrar_mensaje_descripcion(descripcion, label_mensaje)
+    except Exception as e:
+        messagebox.showerror("Error", f"Error al buscar artículo: {str(e)}")
 
 def buscar_por_pasillo(entry_pasillo, archivo_excel, label_mensaje):
     """Crea PDF para pasillo específico"""
@@ -440,6 +504,12 @@ def main():
         form_buscar_por_articulo, 
         text="Obtener PDF", 
         command=lambda: buscar_por_articulo(entry_articulo, archivo_excel, label_mensaje)
+    ).grid(row=2, column=4, columnspan=2, pady=10)
+
+    ttk.Button(
+        form_buscar_por_articulo, 
+        text="Buscar artículo", 
+        command=lambda: buscar_descripcion_articulo(entry_articulo, archivo_excel, label_mensaje)
     ).grid(row=2, column=0, columnspan=2, pady=10)
 
     # --- Formulario por Buscar por pasillo
