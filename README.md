@@ -77,7 +77,7 @@ Al ejecutar la aplicación verás:
 ##### **Modo: Buscar por pasillo**
 
 * Seleccionar "Buscar por pasillo" del menú desplegable
-* Ingresar el número de pasillo (ej: 2, 15, 34)
+* Ingresar el número de pasillo (ej: P02, p15, D34, d35)
 * Hacer clic en "Obtener PDF"
 
 **¿Qué genera?**
