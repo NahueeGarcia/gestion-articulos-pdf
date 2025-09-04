@@ -4,7 +4,6 @@ from reportlab.pdfgen import canvas
 import os
 import pandas as pd
 from reportlab.lib.pagesizes import letter
-from datetime import datetime
 from openpyxl import load_workbook
 
 def crear_pdf_articulo(nombre_archivo, datos_por_articulo, carpeta_destino="pdfs"):
@@ -279,9 +278,6 @@ def obtener_datos_por_pasillo(pasillo, archivo_excel):
             print("Error: No se ha seleccionado ningún archivo")
             return []
         
-        # Formatear el pasillo con ceros a la izquierda (ej: "2" -> "P02")
-        pasillo_formateado = f"P{int(pasillo):02d}"
-        
         # Leer todas las hojas del archivo Excel
         todas_las_hojas = pd.read_excel(ruta_archivo, sheet_name=None)
         
@@ -296,7 +292,7 @@ def obtener_datos_por_pasillo(pasillo, archivo_excel):
                 df['Localizador'] = df['Localizador'].astype(str)
                 
                 # Filtrar filas que pertenezcan al pasillo
-                filas_pasillo = df[df['Localizador'].str.startswith(pasillo_formateado, na=False)]
+                filas_pasillo = df[df['Localizador'].str.startswith(pasillo, na=False)]
                 
                 # Para cada fila del pasillo, extraer los datos
                 for _, fila in filas_pasillo.iterrows():
@@ -418,16 +414,20 @@ def buscar_descripcion_articulo(entry_articulo, archivo_excel, label_mensaje):
 
 def buscar_por_pasillo(entry_pasillo, archivo_excel, label_mensaje):
     """Crea PDF para pasillo específico"""
-    pasillo = entry_pasillo.get().strip()
+    pasillo = entry_pasillo.get().strip().upper()
     
     if not pasillo:
         messagebox.showwarning("Advertencia", "Por favor ingresa el número de pasillo")
         return
     
+    if not pasillo.startswith('P') and not pasillo.startswith('D'):
+        mostrar_mensaje_no_encontrado("Escriba el pasillo con el formato correcto", label_mensaje)
+        return 
+    
     try:
         nombre_archivo = f"Pasillo{pasillo}"
         datos_por_pasillo = obtener_datos_por_pasillo(pasillo, archivo_excel)
-        ruta_pdf = crear_pdf_pasillo(pasillo, datos_por_pasillo)
+        crear_pdf_pasillo(pasillo, datos_por_pasillo)
         mensaje = f"✓ PDF creado exitosamente: {nombre_archivo}.pdf"
         mostrar_mensaje_exito(mensaje, label_mensaje)
     except Exception as e:
@@ -547,6 +547,13 @@ def agregar_diferencia(datos, estado, archivo_excel):
     except Exception as e:
         print(f"Error al agregar diferencias: {str(e)}")
 
+def mostrar_mensaje_no_encontrado(texto, label_mensaje):
+    label_mensaje.configure(text=texto, font=('Arial', 10, 'bold'))
+    label_mensaje.pack(pady=10) 
+
+    # limpiar después de 10 segundos
+    label_mensaje.after(10000, lambda: label_mensaje.configure(text="", font=('Arial', 10)))
+
 def agregar_diferencias(entry_diferencias, estado_var, archivo_excel, label_mensaje):
     """Crea PDF para artículo específico"""
     localizador = entry_diferencias.get().strip()
@@ -558,6 +565,11 @@ def agregar_diferencias(entry_diferencias, estado_var, archivo_excel, label_mens
     
     try:
         datos = obtener_datos_por_localizador(localizador, archivo_excel)
+
+        if not datos:
+            mostrar_mensaje_no_encontrado("No se encontró el localizador, escribalo manualmente en la página correspondiente", label_mensaje)
+            return
+        
         agregar_diferencia(datos, estado, archivo_excel)
         mensaje = "Diferencia agregada!"
         mostrar_mensaje_exito(mensaje, label_mensaje)
