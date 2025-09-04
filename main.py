@@ -5,6 +5,7 @@ import os
 import pandas as pd
 from reportlab.lib.pagesizes import letter
 from datetime import datetime
+from openpyxl import load_workbook
 
 def crear_pdf_articulo(nombre_archivo, datos_por_articulo, carpeta_destino="pdfs"):
     # Crear la carpeta si no existe
@@ -442,14 +443,126 @@ def seleccionar_archivo(archivo_excel, lbl_archivo):
         archivo_excel.set(archivo)
         lbl_archivo.config(text=f"Archivo: {archivo}")
 
+def obtener_datos_por_localizador(localizador, archivo_excel):
+    resultados = []
+    
+    try:
+        # Si es un StringVar de tkinter, extraer el valor
+        if hasattr(archivo_excel, 'get'):
+            ruta_archivo = archivo_excel.get()
+        else:
+            ruta_archivo = archivo_excel
+
+        # Verificar que la ruta no esté vacía
+        if not ruta_archivo:
+            print("Error: No se ha seleccionado ningún archivo")
+            return []
+
+        # Leer todas las hojas del Excel
+        todas_las_hojas = pd.read_excel(ruta_archivo, sheet_name=None)
+
+        # Convertir a string el localizador buscado
+        localizador_str = str(localizador).strip()
+
+        # Buscar en cada hoja
+        for nombre_hoja, df in todas_las_hojas.items():
+            # Verificar que existan las columnas necesarias
+            columnas_necesarias = ['Localizador', 'Artículo', 'Desc Artículo', 'En Mano', 'LPN']
+            if all(col in df.columns for col in columnas_necesarias):
+                # Convertir la columna Localizador a string para comparar sin problemas
+                df['Localizador'] = df['Localizador'].astype(str).str.strip()
+
+                # Filtrar coincidencias
+                coincidencias = df[df['Localizador'] == localizador_str]
+
+                # Extraer resultados en el orden solicitado
+                for _, fila in coincidencias.iterrows():
+                    resultado = (
+                        fila.get('Localizador', ''),
+                        fila.get('Artículo', ''),
+                        fila.get('Desc Artículo', ''),
+                        fila.get('En Mano', ''),
+                        fila.get('LPN', '')
+                    )
+                    resultados.append(resultado)
+
+        return resultados
+
+    except FileNotFoundError:
+        print(f"Error: No se pudo encontrar el archivo {ruta_archivo}")
+        return []
+    except Exception as e:
+        print(f"Error al procesar el archivo: {str(e)}")
+        return []
+
 # --- Función para mostrar el formulario correcto
-def mostrar_formulario(form_container, modo_var, form_buscar_por_articulo, form_buscar_por_pasillo):
+def mostrar_formulario(form_container, modo_var, form_buscar_por_articulo, form_buscar_por_pasillo, form_diferencias):
     for child in form_container.winfo_children():
         child.pack_forget()
     if modo_var.get() == "Buscar por artículo":
         form_buscar_por_articulo.pack(fill="x")
     elif modo_var.get() == "Buscar por pasillo":
         form_buscar_por_pasillo.pack(fill="x")
+    elif modo_var.get() == "Diferencias":
+        form_diferencias.pack(fill="x")
+
+def agregar_diferencia(datos, estado, archivo_excel):
+    try:
+        # Si es un StringVar de tkinter, extraer el valor
+        if hasattr(archivo_excel, 'get'):
+            ruta_archivo = archivo_excel.get()
+        else:
+            ruta_archivo = archivo_excel
+
+        if not ruta_archivo:
+            print("Error: No se ha seleccionado ningún archivo")
+            return
+
+        # Intentar abrir el Excel existente
+        try:
+            book = load_workbook(ruta_archivo)
+        except FileNotFoundError:
+            print(f"Error: No se encontró el archivo {ruta_archivo}")
+            return
+
+        # Nombre de la hoja donde vamos a guardar las diferencias
+        hoja_diferencias = "Diferencias"
+
+        # Si la hoja no existe, crearla con encabezados
+        if hoja_diferencias not in book.sheetnames:
+            ws = book.create_sheet(hoja_diferencias)
+            ws.append(["Localizador", "Artículo", "Desc Artículo", "En Mano", "LPN", "Estado"])
+        else:
+            ws = book[hoja_diferencias]
+
+        # Agregar cada fila de datos
+        for fila in datos:
+            # fila es: (Localizador, Artículo, Desc Artículo, En Mano, LPN)
+            nueva_fila = list(fila) + [estado]  # agregamos la columna "Estado"
+            ws.append(nueva_fila)
+
+        # Guardar cambios
+        book.save(ruta_archivo)
+
+    except Exception as e:
+        print(f"Error al agregar diferencias: {str(e)}")
+
+def agregar_diferencias(entry_diferencias, estado_var, archivo_excel, label_mensaje):
+    """Crea PDF para artículo específico"""
+    localizador = entry_diferencias.get().strip()
+    estado = estado_var.get().strip()
+    
+    if not localizador or not estado:
+        messagebox.showwarning("Advertencia", "Por favor ingresa los campos faltantes")
+        return
+    
+    try:
+        datos = obtener_datos_por_localizador(localizador, archivo_excel)
+        agregar_diferencia(datos, estado, archivo_excel)
+        mensaje = "Diferencia agregada!"
+        mostrar_mensaje_exito(mensaje, label_mensaje)
+    except Exception as e:
+        messagebox.showerror("Error", f"Error al agregar diferencia: {str(e)}")
 
 def main():
     root = tk.Tk()
@@ -487,14 +600,14 @@ def main():
 
     modo_var = tk.StringVar()
     combo_modo = ttk.Combobox(root, textvariable=modo_var, state="readonly")
-    combo_modo["values"] = ("Buscar por artículo", "Buscar por pasillo")
+    combo_modo["values"] = ("Buscar por artículo", "Buscar por pasillo", "Diferencias")
     combo_modo.pack()
 
     # Contenedor para los formularios
     form_container = ttk.Frame(root, padding=10)
     form_container.pack(fill="both", expand=True, pady=15)
 
-    # --- Formulario por Buscar por articulo
+    # --- Formulario por Buscar por artículo
     form_buscar_por_articulo = ttk.Frame(form_container, padding=10)
     ttk.Label(form_buscar_por_articulo, text="Artículo:").grid(row=0, column=0, sticky="w", pady=5)
     entry_articulo = ttk.Entry(form_buscar_por_articulo)
@@ -524,9 +637,28 @@ def main():
         command=lambda: buscar_por_pasillo(entry_pasillo, archivo_excel, label_mensaje)
     ).grid(row=2, column=0, columnspan=2, pady=10)
 
+    # --- Formulario por Diferencias
+    form_diferencias = ttk.Frame(form_container, padding=10)
+
+    ttk.Label(form_diferencias, text="Localizador:").grid(row=0, column=0, sticky="w", pady=5)
+    entry_diferencias = ttk.Entry(form_diferencias)
+    entry_diferencias.grid(row=0, column=1, pady=5, sticky="ew")
+
+    ttk.Label(form_diferencias, text="Estado:").grid(row=0, column=2, sticky="w", pady=5)
+
+    estado_var = ttk.Combobox(form_diferencias, values=["FALTANTE", "SOBRANTE"], state="readonly")
+    estado_var.grid(row=0, column=3, pady=5, sticky="ew")
+    estado_var.current(0)
+
+    ttk.Button(
+        form_diferencias, 
+        text="Agregar diferencia", 
+        command=lambda: agregar_diferencias(entry_diferencias, estado_var, archivo_excel, label_mensaje)
+    ).grid(row=2, column=0, columnspan=2, pady=10)
+
     combo_modo.bind(
         "<<ComboboxSelected>>",
-        lambda event: mostrar_formulario(form_container, modo_var, form_buscar_por_articulo, form_buscar_por_pasillo)
+        lambda event: mostrar_formulario(form_container, modo_var, form_buscar_por_articulo, form_buscar_por_pasillo, form_diferencias)
     )
 
     root.mainloop()
