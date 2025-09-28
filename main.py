@@ -6,6 +6,26 @@ import pandas as pd
 from reportlab.lib.pagesizes import letter
 from openpyxl import load_workbook
 
+def pasar_a_bultos(articulo, en_mano, ruta_archivo):
+    # Leer la hoja "Conversiones"
+    df = pd.read_excel(ruta_archivo, sheet_name="Conversiones")
+
+    # Asegurar que la columna Artículo sea string (para evitar problemas con floats)
+    df['Artículo'] = df['Artículo'].astype(str).str.replace(r'\.0$', '', regex=True)
+
+    # Convertir también el parámetro articulo
+    articulo_str = str(articulo)
+
+    coincidencia = df[df['Artículo'] == articulo_str]
+
+    if not coincidencia.empty:
+        unidades_por_bulto = coincidencia['u x b'].iloc[0]
+        return int (en_mano / unidades_por_bulto)
+    
+    return en_mano
+
+
+
 def crear_pdf_articulo(nombre_archivo, datos_por_articulo, carpeta_destino="pdfs"):
     # Crear la carpeta si no existe
     if not os.path.exists(carpeta_destino):
@@ -142,7 +162,7 @@ def obtener_datos_por_articulo(articulo, archivo_excel):
         # Iterar sobre cada hoja
         for nombre_hoja, df in todas_las_hojas.items():
             # Verificar que la hoja tenga las columnas necesarias
-            if 'Artículo' in df.columns:
+            if 'Artículo' in df.columns and nombre_hoja not in ["Diferencias", "Conversiones"]:
                 # Convertir la columna Artículo a string para evitar problemas con floats
                 df['Artículo'] = df['Artículo'].astype(str)
                 # Limpiar decimales innecesarios (ej: "426367.0" -> "426367")
@@ -156,12 +176,18 @@ def obtener_datos_por_articulo(articulo, archivo_excel):
                 
                 # Para cada coincidencia, extraer los datos en el orden solicitado
                 for _, fila in coincidencias.iterrows():
+                    articulo = fila.get('Artículo', '')
+                    en_mano = int(fila.get('En Mano', ''))
+                    TipoUnidad = fila.get('UDM Primaria', '')
+                    if( TipoUnidad == "UN"):
+                        en_mano = pasar_a_bultos(articulo, en_mano, ruta_archivo)
+
                     resultado = (
-                        fila.get('Artículo', ''),           # Columna D
-                        fila.get('Desc Artículo', ''),      # Columna E  
-                        fila.get('En Mano', ''),            # Columna H
-                        fila.get('Localizador', ''),        # Columna C
-                        fila.get('LPN', '')                 # Columna O
+                        articulo,
+                        fila.get('Desc Artículo', ''),       
+                        en_mano,            
+                        fila.get('Localizador', ''),       
+                        fila.get('LPN', '')                 
                     )
                     resultados.append(resultado)
         
@@ -287,7 +313,7 @@ def obtener_datos_por_pasillo(pasillo, archivo_excel):
         # Iterar sobre cada hoja
         for nombre_hoja, df in todas_las_hojas.items():
             # Verificar que la hoja tenga las columnas necesarias
-            if 'Localizador' in df.columns:
+            if 'Localizador' in df.columns and nombre_hoja not in ["Diferencias", "Conversiones"]:
                 # Convertir localizador a string para poder hacer comparaciones
                 df['Localizador'] = df['Localizador'].astype(str)
                 
@@ -312,11 +338,17 @@ def obtener_datos_por_pasillo(pasillo, archivo_excel):
                         posicion = 999
                         altura = 999
                     
+                    articulo = fila.get('Artículo', '')
+                    en_mano = int(fila.get('En Mano', ''))
+                    TipoUnidad = fila.get('UDM Primaria', '')
+                    if( TipoUnidad == "UN"):
+                        en_mano = pasar_a_bultos(articulo, en_mano, ruta_archivo)
+
                     resultado = (
                         localizador,                        # Columna C
-                        fila.get('Artículo', ''),           # Columna D
+                        articulo,                           # Columna D
                         fila.get('Desc Artículo', ''),      # Columna E  
-                        fila.get('En Mano', ''),            # Columna H
+                        en_mano,                            # Columna H
                         fila.get('LPN', ''),                # Columna O
                         altura,                             # Para ordenar
                         posicion                            # Para ordenar
@@ -359,7 +391,7 @@ def obtener_descripcion(articulo, archivo_excel):
 
         # Buscar en cada hoja
         for nombre_hoja, df in todas_las_hojas.items():
-            if 'Artículo' in df.columns and 'Desc Artículo' in df.columns:
+            if 'Artículo' in df.columns and 'Desc Artículo' in df.columns and nombre_hoja not in ["Diferencias", "Conversiones"]:
                 # Convertir la columna Artículo a string
                 df['Artículo'] = df['Artículo'].astype(str)
                 df['Artículo'] = df['Artículo'].str.replace(r'\.0$', '', regex=True)
@@ -477,11 +509,18 @@ def obtener_datos_por_localizador(localizador, archivo_excel):
 
                 # Extraer resultados en el orden solicitado
                 for _, fila in coincidencias.iterrows():
+
+                    articulo = fila.get('Artículo', '')
+                    en_mano = int(fila.get('En Mano', ''))
+                    TipoUnidad = fila.get('UDM Primaria', '')
+                    if( TipoUnidad == "UN"):
+                        en_mano = pasar_a_bultos(articulo, en_mano, ruta_archivo)
+
                     resultado = (
                         fila.get('Localizador', ''),
-                        fila.get('Artículo', ''),
+                        articulo,
                         fila.get('Desc Artículo', ''),
-                        fila.get('En Mano', ''),
+                        en_mano,
                         fila.get('LPN', '')
                     )
                     resultados.append(resultado)
